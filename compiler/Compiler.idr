@@ -3,21 +3,8 @@ module Compiler
 import Helpers
 import Lang 
 
----------------------------------------------------------------------------
----------------------------------------------------------------------------
----------------------------------------------------------------------------
-x : Var
-x = Variable "x"
-
-vT : Esrc
-vT = esrc.C True
-
-t1 : Esrc
-t1 = Lambda [x] [(V x)]
-
-t2 : Esrc
-t2 = esrc.Lambda [x] 
-           [(AndE [vT, (OrE [vT, (esrc.V x)])])] 
+import Effects
+import Effect.State
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -81,26 +68,33 @@ makeBeginExplicit (Begin es) = Begin (map makeBeginExplicit es)
 makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 
 
--- ---------------------------------------------------------------------------
--- ---------------------------------------------------------------------------
--- uncoverAssignments : Expr2 -> Expr3
--- ---------------------------------------------------------------------------
--- 
--- uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
--- uncoverAssnSt (Set v e) = do update (\x -> v::x)  
---                              return (Set v e)
--- uncoverAssnSt (Lambda args e) = 
---   do es <- map uncoverAssnSt e
---      uncovered <- get
---      ss <- intersection args uncovered
---      res <- Settable (intersection args uncovered) es
---      put $ difference uncovered ss
---      return res
--- uncoverAssnSt x = x
--- 
--- uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
--- 
 ---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+uncoverAssignments : Expr2 -> Expr3
+---------------------------------------------------------------------------
+
+uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
+uncoverAssnSt (Set v e) = do xs <- get
+                             let newls = List.(::) v xs
+                             put newls
+                             return (e3.Set v (uncoverAssnSt e))
+uncoverAssnSt (Lambda args e) = 
+  do es <- map uncoverAssnSt e
+     uncovered <- get
+     ss <- intersection args uncovered
+     res <- Settable (intersection args uncovered) es
+     put $ difference uncovered ss
+     return res
+uncoverAssnSt (P p) = return P p
+uncoverAssnSt (C c) = return C c
+uncoverAssnSt (V v) = return V v
+
+-- I should deal with let/letrec next, but those bindings are going to be a
+-- do-style mess and I'm feeling lazy tonight.
+
+uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
+
+------------------------------------------------------------------------
 
 compiler : Esrc -> IO ()
 compiler e = do let o = makeBeginExplicit $ removeAndOrNot e
