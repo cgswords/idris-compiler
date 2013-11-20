@@ -1,9 +1,8 @@
 module Lang 
 
-flattenShow : (Show a) => (List a) -> String
-flattenShow Nil = ""
-flattenShow (x::ls) = show x ++ " " ++ flattenShow ls
+import Helpers
 
+public
 data Prim = Plus | Minus | Times 
           | Fst | Snd | Cons 
           | PairHuh | NullHuh | BoolHuh 
@@ -30,6 +29,7 @@ instance Show Prim where
   show GT = ">"
   show GEQ = ">="
 
+public
 data Constant = True | False | EmptyList | Num Nat
 
 instance Show Constant where
@@ -38,6 +38,7 @@ instance Show Constant where
   show EmptyList = "\'()"
   show (Num n) = show n
 
+public
 data Var = Variable String
 
 instance Show Var where
@@ -48,6 +49,7 @@ instance Eq Var where
 
 ----------------------------------------------------------------------------
 namespace esrc
+  public
   data Esrc = Lambda (List Var) (List Esrc) 
             | Fun Type ((List String), (List Esrc))
             | App (List Esrc)
@@ -86,6 +88,7 @@ instance Show Esrc where
 
 ----------------------------------------------------------------------------
 namespace e1
+  public
   data Expr1 = Lambda (List Var) (List Expr1) 
             | Fun Type ((List String), (List Expr1))
             | App (List Expr1)
@@ -97,7 +100,6 @@ namespace e1
             | IfE Expr1 Expr1 Expr1
             | Begin (List Expr1)
             | Set Var Expr1
-
 
 instance Show Expr1 where
   show (Lambda vs e) = 
@@ -119,6 +121,7 @@ instance Show Expr1 where
     
 ----------------------------------------------------------------------------
 namespace e2
+  public
   data Expr2 = Lambda (List Var) Expr2 
             | Fun Type ((List String), (List Expr2))
             | App (List Expr2)
@@ -153,6 +156,7 @@ instance Show Expr2 where
 ----------------------------------------------------------------------------
 namespace e3
   mutual 
+    public
     data Expr3 = Lambda (List Var) SBody 
               | Fun Type ((List String), (List Expr3))
               | App (List Expr3)
@@ -165,6 +169,7 @@ namespace e3
               | Begin (List Expr3)
               | Set Var Expr3
     
+    public
     data SBody = Settable (List Var) Expr3
 
 

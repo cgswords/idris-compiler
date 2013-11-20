@@ -1,5 +1,9 @@
 module Helpers
 
+flattenShow : (Show a) => (List a) -> String
+flattenShow Nil = ""
+flattenShow (x::ls) = show x ++ " " ++ flattenShow ls
+
 intersection : (Eq a) => List a -> List a -> List a
 intersection a Nil = a
 intersection Nil b = b

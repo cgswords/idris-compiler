@@ -1,8 +1,7 @@
 module Compiler
 
-import Effect.State
-import Lang 
 import Helpers
+import Lang 
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -60,7 +59,6 @@ removeAndOrNot (IfE e1 e2 e3) =
 removeAndOrNot (Begin es) = Begin (map removeAndOrNot es)
 removeAndOrNot (Set v e) = Set v (removeAndOrNot e)
 
-
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 makeBeginExplicit : Expr1 -> Expr2
@@ -83,33 +81,27 @@ makeBeginExplicit (Begin es) = Begin (map makeBeginExplicit es)
 makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 
 
----------------------------------------------------------------------------
----------------------------------------------------------------------------
-uncoverAssignments : Expr2 -> Expr3
+-- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- uncoverAssignments : Expr2 -> Expr3
+-- ---------------------------------------------------------------------------
+-- 
+-- uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
+-- uncoverAssnSt (Set v e) = do update (\x -> v::x)  
+--                              return (Set v e)
+-- uncoverAssnSt (Lambda args e) = 
+--   do es <- map uncoverAssnSt e
+--      uncovered <- get
+--      ss <- intersection args uncovered
+--      res <- Settable (intersection args uncovered) es
+--      put $ difference uncovered ss
+--      return res
+-- uncoverAssnSt x = x
+-- 
+-- uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
+-- 
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
-uncoverAssnSt (Set v e) = do update (\x -> v::x)  
-                             return (Set v e)
-uncoverAssnSt (Lambda args e) = 
-  do es <- map uncoverAssnSt e
-     uncovered <- get
-     ss <- intersection args uncovered
-     res <- Settable (intersection args uncovered) es
-     put $ difference uncovered ss
-     return res
-     
-uncoverAssnSt _ = undefined
-
-uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
-
----------------------------------------------------------------------------
-
-compiler : Expr -> IO ()
+compiler : Esrc -> IO ()
 compiler e = do let o = makeBeginExplicit $ removeAndOrNot e
                 print (show o)
-
-
-main : IO ()
-main = do let o = removeAndOrNot t2
-          print (show o)
