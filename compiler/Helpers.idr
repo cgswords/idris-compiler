@@ -4,10 +4,15 @@ flattenShow : (Show a) => (List a) -> String
 flattenShow Nil = ""
 flattenShow (x::ls) = show x ++ " " ++ flattenShow ls
 
---union : (Eq a) => List a -> List a -> List a
---union a Nil = a
---union Nil b = b union a b = let mapper = \ x ls => if elem x b then (x :: ls) else ls
---            in foldr mapper Nil a
+unique : (Eq a) => List a -> List a
+unique [] = []
+unique (x::ls) = if elem x ls then unique ls else x::(unique ls)
+
+union : (Eq a) => List a -> List a -> List a
+union a Nil = a
+union Nil b = b 
+union a b = let mapper = (\ x => \ ls => if elem x b then ls else (List.(::) x ls))
+            in foldr mapper b a
 
 intersection : (Eq a) => List a -> List a -> List a
 intersection a Nil = a

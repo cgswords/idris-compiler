@@ -51,7 +51,6 @@ instance Eq Var where
 namespace esrc
   public
   data Esrc = Lambda (List Var) (List Esrc) 
-            | Fun Type ((List String), (List Esrc))
             | App (List Esrc)
             | P Prim
             | C Constant
@@ -64,12 +63,13 @@ namespace esrc
             | Not Esrc
             | Begin (List Esrc)
             | Set Var Esrc
+--          | Fun Type ((List String), (List Esrc))
  
 instance Show Esrc where
   show (Lambda vs e) = 
     let vars = flattenShow vs
     in "\\ " ++ vars ++ "." ++ (flattenShow e)
-  show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
+--show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -90,7 +90,6 @@ instance Show Esrc where
 namespace e1
   public
   data Expr1 = Lambda (List Var) (List Expr1) 
-            | Fun Type ((List String), (List Expr1))
             | App (List Expr1)
             | P Prim
             | C Constant
@@ -100,12 +99,13 @@ namespace e1
             | IfE Expr1 Expr1 Expr1
             | Begin (List Expr1)
             | Set Var Expr1
+--          | Fun Type ((List String), (List Expr1))
 
 instance Show Expr1 where
   show (Lambda vs e) = 
     let vars = flattenShow vs
     in "\\ " ++ vars ++ "." ++ (flattenShow e)
-  show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
+--show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -123,7 +123,6 @@ instance Show Expr1 where
 namespace e2
   public
   data Expr2 = Lambda (List Var) Expr2 
-            | Fun Type ((List String), (List Expr2))
             | App (List Expr2)
             | P Prim
             | C Constant
@@ -133,13 +132,14 @@ namespace e2
             | IfE Expr2 Expr2 Expr2
             | Begin (List Expr2)
             | Set Var Expr2
+--          | Fun Type ((List String), (List Expr2))
 
 
 instance Show Expr2 where
   show (Lambda vs e) = 
     let vars = flattenShow vs
     in "\\ " ++ vars ++ "." ++ (show e)
-  show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
+--show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -158,7 +158,6 @@ namespace e3
   mutual 
     public
     data Expr3 = Lambda (List Var) SBody 
-              | Fun Type ((List String), (List Expr3))
               | App (List Expr3)
               | P Prim
               | C Constant
@@ -168,6 +167,7 @@ namespace e3
               | IfE Expr3 Expr3 Expr3
               | Begin (List Expr3)
               | Set Var Expr3
+--            | Fun Type ((List String), (List Expr3))
     
     public
     data SBody = Settable (List Var) Expr3
@@ -181,7 +181,7 @@ instance Show Expr3 where
   show (Lambda vs ss) = 
     let vars = flattenShow vs
     in "\\ " ++ vars ++ ". " ++ showSet ss
-  show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
+--show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
