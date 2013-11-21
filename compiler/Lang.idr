@@ -198,6 +198,6 @@ instance Show Expr3 where
 showSet (Settable vs e) =  "[set " ++ (flattenShow vs) ++ "] " ++ (show e)
 
 instance Show SBody where
-  show (Settable vs e) = "[set " ++ (flattenShow vs) ++ "] " ++ (show e)
+  show (Settable vs e) = "[settables: " ++ (flattenShow vs) ++ "] " ++ (show e)
 
 

@@ -2,6 +2,7 @@ module Compiler
 
 import Helpers
 import Lang 
+import Tests
 
 import Effects
 import Effect.State
@@ -67,13 +68,20 @@ makeBeginExplicit (IfE e1 e2 e3) =
 makeBeginExplicit (Begin es) = Begin (map makeBeginExplicit es)
 makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 
-
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 uncoverAssignments : Expr2 -> Expr3
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : (Applicative m) => Expr2 -> Eff m [STATE (List Var)] Expr3
+uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
+
+listUncover : (List Expr2) -> Eff m [STATE (List Var)] (List Expr3)
+
+listUncover List.Nil = return List.Nil
+listUncover (x::ls) = do nX <- uncoverAssnSt x
+                         res <- listUncover ls
+                         return (List.(::) nX res)
+
 uncoverAssnSt (Set v e) = do xs <- get
                              newE <- uncoverAssnSt e
                              put $ union [v] xs
@@ -111,9 +119,9 @@ uncoverAssnSt (IfE e1 e2 e3) = do newe1 <- uncoverAssnSt e1
                                   newe2 <- uncoverAssnSt e2
                                   newe3 <- uncoverAssnSt e3
                                   Effects.return $ IfE newe1 newe2 newe3
-uncoverAssnSt (Begin es) = do newEs <- (mapE uncoverAssnSt es)
+uncoverAssnSt (Begin es) = do newEs <- listUncover es
                               Effects.return $ e3.Begin newEs
-uncoverAssnSt (App es) = do newEs <- (mapE uncoverAssnSt es)
+uncoverAssnSt (App es) = do newEs <- listUncover es
                             Effects.return $ e3.App newEs
 
 uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
@@ -142,8 +150,50 @@ purifyLetrec (Begin es) = Begin (map purifyLetrec es)
 purifyLetrec (Set v rhs) = Set v (purifyLetrec rhs)
 purifyLetrec x = x
 
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+convert-assignments : Expr3 -> Expr3
+---------------------------------------------------------------------------
+--  (convert-assignments)
+--  (optimize-direct-call)
+--  (remove-anonymous-lambda)
+--  (sanitize-binding-forms)
+--  (uncover-free)
+--  (convert-closures)
+--  (optimize-known-call)
+--  (introduce-procedure-primitives)
+--  (lift-letrec)
+--  (normalize-context)
+--  (specify-representation)
+--  (fold-constants)
+--  (uncover-locals)
+--  (remove-let)
+--  (verify-uil)
+--  (remove-complex-opera*)
+--  (flatten-set!)
+--  (impose-calling-conventions)
+--  (expose-allocation-pointer)
+--  (uncover-frame-conflict)
+--  (pre-assign-frame)
+--  (assign-new-frame)
+-- (iterate
+--    (finalize-frame-locations)
+--    (select-instructions)
+--    (uncover-register-conflict)
+--    (assign-registers)
+--    (break/when everybody-home?)
+--    (assign-frame)
+--    )
+--  (discard-call-live)
+--  (finalize-locations)
+--  (expose-frame-var)
+--  (expose-memory-operands)
+--  (expose-basic-blocks)
+--  (optimize-jumps)
+--  (flatten-program)
+--  (generate-x86-64 assemble)
 
 -------------------------------------------------------------------------
-compiler : Esrc -> IO ()
-compiler e = do let o = makeBeginExplicit $ removeAndOrNot e
-                print (show o)
+compiler : Esrc -> String 
+compiler e = do let o = uncoverAssignments $ makeBeginExplicit $ removeAndOrNot e
+                (show o)
