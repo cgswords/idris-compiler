@@ -1,5 +1,7 @@
 module Compiler
 
+import Control.Monad
+
 import Helpers
 import Lang 
 import Tests
@@ -73,14 +75,7 @@ makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 uncoverAssignments : Expr2 -> Expr3
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : Expr2 -> Eff m [STATE (List Var)] Expr3
-
-listUncover : (List Expr2) -> Eff m [STATE (List Var)] (List Expr3)
-
-listUncover List.Nil = return List.Nil
-listUncover (x::ls) = do nX <- uncoverAssnSt x
-                         res <- listUncover ls
-                         return (List.(::) nX res)
+uncoverAssnSt : Monad m => Expr2 -> Eff m [STATE (List Var)] Expr3
 
 uncoverAssnSt (Set v e) = do xs <- get
                              newE <- uncoverAssnSt e
@@ -119,9 +114,9 @@ uncoverAssnSt (IfE e1 e2 e3) = do newe1 <- uncoverAssnSt e1
                                   newe2 <- uncoverAssnSt e2
                                   newe3 <- uncoverAssnSt e3
                                   Effects.return $ IfE newe1 newe2 newe3
-uncoverAssnSt (Begin es) = do newEs <- listUncover es
+uncoverAssnSt (Begin es) = do newEs <- mapE uncoverAssnSt es
                               Effects.return $ e3.Begin newEs
-uncoverAssnSt (App es) = do newEs <- listUncover es
+uncoverAssnSt (App es) = do newEs <-  mapE uncoverAssnSt es
                             Effects.return $ e3.App newEs
 
 uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
@@ -152,7 +147,7 @@ purifyLetrec x = x
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
-convert-assignments : Expr3 -> Expr3
+-- convert-assignments : Expr3 -> Expr3
 ---------------------------------------------------------------------------
 --  (convert-assignments)
 --  (optimize-direct-call)
@@ -195,5 +190,5 @@ convert-assignments : Expr3 -> Expr3
 
 -------------------------------------------------------------------------
 compiler : Esrc -> String 
-compiler e = do let o = uncoverAssignments $ makeBeginExplicit $ removeAndOrNot e
+compiler e = do let o = purifyLetrec $ uncoverAssignments $ makeBeginExplicit $ removeAndOrNot e
                 (show o)
