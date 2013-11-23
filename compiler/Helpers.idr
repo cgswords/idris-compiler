@@ -1,5 +1,7 @@
 module Helpers
 
+%access public
+
 flattenShow : (Show a) => (List a) -> String
 flattenShow Nil = ""
 flattenShow (x::ls) = show x ++ " " ++ flattenShow ls

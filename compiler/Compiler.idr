@@ -1,13 +1,15 @@
 module Compiler
 
-import Control.Monad
-
-import Helpers
-import Lang 
-import Tests
 
 import Effects
 import Effect.State
+import Control.Monad
+
+import Lang 
+import Helpers
+import Tests
+
+%access public
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -35,7 +37,6 @@ removeAndOrNot (AndE ls) = removeAnd ls
 removeAndOrNot (OrE ls) = removeOr ls
 removeAndOrNot (Not e) = removeNot e
 removeAndOrNot (Lambda args es) = Lambda args $ map removeAndOrNot es
--- removeAndOrNot (Fun t (pats, es)) = Fun t (pats, map removeAndOrNot es)
 removeAndOrNot (App es) = App (map removeAndOrNot es)
 removeAndOrNot (P p) = P p
 removeAndOrNot (C c) = C c
@@ -48,6 +49,7 @@ removeAndOrNot (IfE e1 e2 e3) =
   IfE (removeAndOrNot e1) (removeAndOrNot e2) (removeAndOrNot e3)
 removeAndOrNot (Begin es) = Begin (map removeAndOrNot es)
 removeAndOrNot (Set v e) = Set v (removeAndOrNot e)
+-- removeAndOrNot (Fun t (pats, es)) = Fun t (pats, map removeAndOrNot es)
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -56,7 +58,6 @@ makeBeginExplicit : Expr1 -> Expr2
 
 makeBeginExplicit (Lambda args e) = 
   Lambda args (Begin (map makeBeginExplicit e))
--- makeBeginExplicit (Fun t (pats, es)) = Fun t (pats, map makeBeginExplicit es)
 makeBeginExplicit (App es) = App (map makeBeginExplicit es)
 makeBeginExplicit (P p) = P p
 makeBeginExplicit (C c) = C c
@@ -69,13 +70,14 @@ makeBeginExplicit (IfE e1 e2 e3) =
   IfE (makeBeginExplicit e1) (makeBeginExplicit e2) (makeBeginExplicit e3)
 makeBeginExplicit (Begin es) = Begin (map makeBeginExplicit es)
 makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
+-- makeBeginExplicit (Fun t (pats, es)) = Fun t (pats, map makeBeginExplicit es)
 
 ---------------------------------------------------------------------------
----------------------------------------------------------------------------
+------------------------------------------------------------------------
 uncoverAssignments : Expr2 -> Expr3
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : Monad m => Expr2 -> Eff m [STATE (List Var)] Expr3
+uncoverAssnSt : Applicative m => Expr2 -> Eff m [STATE (List Var)] Expr3
 
 uncoverAssnSt (Set v e) = do xs <- get
                              newE <- uncoverAssnSt e
@@ -116,7 +118,7 @@ uncoverAssnSt (IfE e1 e2 e3) = do newe1 <- uncoverAssnSt e1
                                   Effects.return $ IfE newe1 newe2 newe3
 uncoverAssnSt (Begin es) = do newEs <- mapE uncoverAssnSt es
                               Effects.return $ e3.Begin newEs
-uncoverAssnSt (App es) = do newEs <-  mapE uncoverAssnSt es
+uncoverAssnSt (App es) = do newEs <- mapE uncoverAssnSt es
                             Effects.return $ e3.App newEs
 
 uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
@@ -147,12 +149,11 @@ purifyLetrec x = x
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
--- convert-assignments : Expr3 -> Expr3
+-- convertAssignments : Expr3 -> Expr3
 ---------------------------------------------------------------------------
---  (convert-assignments)
---  (optimize-direct-call)
---  (remove-anonymous-lambda)
---  (sanitize-binding-forms)
+--  (optimizeDirectCall)
+--  (removeAnonymousLambda)
+--  (sanitizeBindingForms)
 --  (uncover-free)
 --  (convert-closures)
 --  (optimize-known-call)
@@ -177,8 +178,7 @@ purifyLetrec x = x
 --    (uncover-register-conflict)
 --    (assign-registers)
 --    (break/when everybody-home?)
---    (assign-frame)
---    )
+--    (assign-frame))
 --  (discard-call-live)
 --  (finalize-locations)
 --  (expose-frame-var)
@@ -188,7 +188,7 @@ purifyLetrec x = x
 --  (flatten-program)
 --  (generate-x86-64 assemble)
 
--------------------------------------------------------------------------
+----------------------------------------------------------------------
 compiler : Esrc -> String 
 compiler e = do let o = purifyLetrec $ uncoverAssignments $ makeBeginExplicit $ removeAndOrNot e
                 (show o)

@@ -2,6 +2,8 @@ module Lang
 
 import Helpers
 
+%access public
+
 public
 data Prim = Plus | Minus | Times 
           | Fst | Snd | Cons 
