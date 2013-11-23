@@ -4,14 +4,13 @@ import Helpers
 
 %access public
 
-public
-data Prim = Plus | Minus | Times 
-          | Fst | Snd | Cons 
-          | PairHuh | NullHuh | BoolHuh 
-          | Box | Unbox | BoxSet | BoxHuh 
-          | EqualHuh | LT | LEQ | GT | GEQ 
+public data CompPrim = Plus | Minus | Times 
+                 | Fst | Snd | Cons 
+                 | PairHuh | NullHuh | BoolHuh 
+                 | Box | Unbox | BoxSet | BoxHuh 
+                 | EqualHuh | LT | LEQ | GT | GEQ 
 
-instance Show Prim where
+instance Show CompPrim where
   show Plus = "+"
   show Minus = "-"
   show Times = "*"
@@ -31,40 +30,37 @@ instance Show Prim where
   show GT = ">"
   show GEQ = ">="
 
-public
-data Constant = True | False | EmptyList | Num Nat
+public data CompConst = True | False | EmptyList | Num Nat
 
-instance Show Constant where
+instance Show CompConst where
   show True = "#t"
   show False = "#f"
   show EmptyList = "\'()"
   show (Num n) = show n
 
-public
-data Var = Variable String
+public data CompVar = CompVariable String
 
-instance Show Var where
-  show (Variable x) = show x
+instance Show CompVar where
+  show (CompVariable x) = show x
 
-instance Eq Var where
-  (Variable x) == (Variable y) = x == y
+instance Eq CompVar where
+  (CompVariable x) == (CompVariable y) = x == y
 
 ----------------------------------------------------------------------------
 namespace esrc
-  public
-  data Esrc = Lambda (List Var) (List Esrc) 
-            | App (List Esrc)
-            | P Prim
-            | C Constant
-            | V Var
-            | Let Var Esrc (List Esrc)
-            | Letrec Var Esrc (List Esrc)
-            | IfE Esrc Esrc Esrc
-            | OrE (List Esrc)
-            | AndE (List Esrc)
-            | Not Esrc
-            | Begin (List Esrc)
-            | Set Var Esrc
+  public data Esrc = Lambda (List CompVar) (List Esrc) 
+                   | App (List Esrc)
+                   | P CompPrim
+                   | C CompConst
+                   | V CompVar
+                   | Let CompVar Esrc (List Esrc)
+                   | Letrec CompVar Esrc (List Esrc)
+                   | IfE Esrc Esrc Esrc
+                   | OrE (List Esrc)
+                   | AndE (List Esrc)
+                   | Not Esrc
+                   | Begin (List Esrc)
+                   | Set CompVar Esrc
 --          | Fun Type ((List String), (List Esrc))
  
 instance Show Esrc where
@@ -90,17 +86,16 @@ instance Show Esrc where
 
 ----------------------------------------------------------------------------
 namespace e1
-  public
-  data Expr1 = Lambda (List Var) (List Expr1) 
-            | App (List Expr1)
-            | P Prim
-            | C Constant
-            | V Var
-            | Let Var Expr1 (List Expr1)
-            | Letrec Var Expr1 (List Expr1)
-            | IfE Expr1 Expr1 Expr1
-            | Begin (List Expr1)
-            | Set Var Expr1
+  public data Expr1 = Lambda (List CompVar) (List Expr1) 
+                    | App (List Expr1)
+                    | P CompPrim
+                    | C CompConst
+                    | V CompVar
+                    | Let CompVar Expr1 (List Expr1)
+                    | Letrec CompVar Expr1 (List Expr1)
+                    | IfE Expr1 Expr1 Expr1
+                    | Begin (List Expr1)
+                    | Set CompVar Expr1
 --          | Fun Type ((List String), (List Expr1))
 
 instance Show Expr1 where
@@ -123,17 +118,16 @@ instance Show Expr1 where
     
 ----------------------------------------------------------------------------
 namespace e2
-  public
-  data Expr2 = Lambda (List Var) Expr2 
-            | App (List Expr2)
-            | P Prim
-            | C Constant
-            | V Var
-            | Let Var Expr2 Expr2
-            | Letrec Var Expr2 Expr2
-            | IfE Expr2 Expr2 Expr2
-            | Begin (List Expr2)
-            | Set Var Expr2
+  public data Expr2 = Lambda (List CompVar) Expr2 
+                    | App (List Expr2)
+                    | P CompPrim
+                    | C CompConst
+                    | V CompVar
+                    | Let CompVar Expr2 Expr2
+                    | Letrec CompVar Expr2 Expr2
+                    | IfE Expr2 Expr2 Expr2
+                    | Begin (List Expr2)
+                    | Set CompVar Expr2
 --          | Fun Type ((List String), (List Expr2))
 
 
@@ -158,21 +152,19 @@ instance Show Expr2 where
 ----------------------------------------------------------------------------
 namespace e3
   mutual 
-    public
-    data Expr3 = Lambda (List Var) SBody 
-              | App (List Expr3)
-              | P Prim
-              | C Constant
-              | V Var
-              | Let Var Expr3 SBody
-              | Letrec Var Expr3 SBody
-              | IfE Expr3 Expr3 Expr3
-              | Begin (List Expr3)
-              | Set Var Expr3
+    public data Expr3 = Lambda (List CompVar) SBody 
+                      | App (List Expr3)
+                      | P CompPrim
+                      | C CompConst
+                      | V CompVar
+                      | Let CompVar Expr3 SBody
+                      | Letrec CompVar Expr3 SBody
+                      | IfE Expr3 Expr3 Expr3
+                      | Begin (List Expr3)
+                      | Set CompVar Expr3
 --            | Fun Type ((List String), (List Expr3))
     
-    public
-    data SBody = Settable (List Var) Expr3
+    public data SBody = Settable (List CompVar) Expr3
 
 
 ---- This is the dirtiest hack; it seems that you can't define mutually-recursive Show instances (?)

@@ -3,16 +3,15 @@ module Tests
 import Lang
 import Helpers
 
-
 %access public
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
-x : Var
-x = Variable "x"
-y : Var
-y = Variable "y"
+x : CompVar
+x = CompVariable "x"
+y : CompVar
+y = CompVariable "y"
 
 vT : Esrc
 vT = esrc.C True

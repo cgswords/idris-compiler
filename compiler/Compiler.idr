@@ -1,9 +1,8 @@
 module Compiler
 
-
 import Effects
 import Effect.State
-import Control.Monad
+import Control.Monad.Identity
 
 import Lang 
 import Helpers
@@ -72,12 +71,12 @@ makeBeginExplicit (Begin es) = Begin (map makeBeginExplicit es)
 makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 -- makeBeginExplicit (Fun t (pats, es)) = Fun t (pats, map makeBeginExplicit es)
 
----------------------------------------------------------------------------
 ------------------------------------------------------------------------
+---------------------------------------------------------------------
 uncoverAssignments : Expr2 -> Expr3
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : Applicative m => Expr2 -> Eff m [STATE (List Var)] Expr3
+uncoverAssnSt : (Applicative m) => Expr2 -> Eff m [STATE (List CompVar)] Expr3
 
 uncoverAssnSt (Set v e) = do xs <- get
                              newE <- uncoverAssnSt e
