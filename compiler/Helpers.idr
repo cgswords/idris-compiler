@@ -2,6 +2,10 @@ module Helpers
 
 %access public
 
+assoc : (Eq a) => a -> (List (a,b)) -> Maybe b
+assoc x List.Nil = Nothing
+assoc x ((a,b)::ls) = if a == x then Just b else assoc x ls
+
 flattenShow : (Show a) => (List a) -> String
 flattenShow Nil = ""
 flattenShow (x::ls) = show x ++ " " ++ flattenShow ls
@@ -17,8 +21,8 @@ union a b = let mapper = (\ x => \ ls => if elem x b then ls else (List.(::) x l
             in foldr mapper b a
 
 intersection : (Eq a) => List a -> List a -> List a
-intersection a Nil = a
-intersection Nil b = b
+intersection a Nil = Nil
+intersection Nil b = Nil
 intersection a b = filter (\x => elem x b) a
 
 difference : (Eq a) => List a -> List a -> List a

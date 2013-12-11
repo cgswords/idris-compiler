@@ -76,7 +76,7 @@ makeBeginExplicit (Set v e) = Set v (makeBeginExplicit e)
 uncoverAssignments : Expr2 -> Expr3
 ---------------------------------------------------------------------------
 
-uncoverAssnSt : (Applicative m) => Expr2 -> Eff m [STATE (List CompVar)] Expr3
+uncoverAssnSt : Expr2 -> Eff Identity [STATE (List CompVar)] Expr3
 
 uncoverAssnSt (Set v e) = do xs <- get
                              newE <- uncoverAssnSt e
@@ -85,28 +85,33 @@ uncoverAssnSt (Set v e) = do xs <- get
 uncoverAssnSt (Lambda args e) = 
   do newE <- uncoverAssnSt e
      uncovered <- get
-     ss <- return $ intersection args uncovered
-     res <- return $ e3.Lambda args $ Settable ss newE
-     put $ difference uncovered ss
+     let ss = intersection args uncovered
+     let res = e3.Lambda args $ Settable ss newE
+     put $ difference uncovered args
      return res
 uncoverAssnSt (Let v rhs e) =
   do origS <- get
      newRHS <- uncoverAssnSt rhs
-     rhsVars <- get
+     letSets <- get
      put origS
-     newE <-uncoverAssnSt e
-     eS <- get
-     ss <- return $ intersection [v] eS
-     res <- return $ e3.Let v newRHS $ Settable ss newE
-     put $ union (difference eS [v]) rhsVars 
+     newE <- uncoverAssnSt e
+     sets <- get
+     let letv = intersection [v] sets
+     let valv = union letSets (difference sets [v]) 
+     let res = e3.Let v newRHS $ Settable letv newE
+     put valv
      return res
 uncoverAssnSt (Letrec v rhs e) =
   do origS <- get
      newRHS <- uncoverAssnSt rhs
+     letSets <- get
+     put origS
      newE <- uncoverAssnSt e
-     ss <- get
-     res <- return $ e3.Letrec v newRHS $ Settable (intersection [v] ss) newE
-     put $ difference ss [v]
+     sets <- get
+     let letv = intersection [v] sets
+     let valv = union letSets (difference sets [v]) 
+     let res = e3.Letrec v newRHS $ Settable letv newE
+     put valv
      return res
 uncoverAssnSt (P p) = Effects.return $ P p
 uncoverAssnSt (C c) = Effects.return $ C c
@@ -120,7 +125,10 @@ uncoverAssnSt (Begin es) = do newEs <- mapE uncoverAssnSt es
 uncoverAssnSt (App es) = do newEs <- mapE uncoverAssnSt es
                             Effects.return $ e3.App newEs
 
-uncoverAssignments e = runPure [List.Nil] (uncoverAssnSt e)
+runId : Identity a -> a
+runId (Id f) = f
+
+uncoverAssignments e = runId $ run [List.Nil] $ uncoverAssnSt e
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -128,6 +136,7 @@ purifyLetrec : Expr3 -> Expr3
 ---------------------------------------------------------------------------
 
 e3LamExp : Expr3 -> Bool
+
 e3LamExp (Lambda vs s) = True
 e3LamExp x = False
 
@@ -148,11 +157,115 @@ purifyLetrec x = x
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
--- convertAssignments : Expr3 -> Expr3
+convertAssignments : Expr3 -> Expr4
 ---------------------------------------------------------------------------
+
+uniqueId : CompVar -> Eff Identity [STATE Int] CompVar
+uniqueId (CompVariable s) = Effects.return $ CompVariable (s ++ (show !get))
+
+newBindings : (List CompVar) -> Eff Identity [STATE Int] (List (CompVar, CompVar))
+newBindings List.Nil = Effects.return $ List.Nil
+newBindings (x::ls) = Effects.return $ the (List _) ((x,!(uniqueId x))::(!(newBindings ls)))
+
+buildInner : (List (CompVar, CompVar)) -> Expr4 -> Expr4
+buildInner List.Nil e = e
+buildInner ((v,bind)::ls) e = 
+  e4.Let v (e4.App [(P Cons), (V bind), (P MTList)]) (buildInner ls e)
+
+maybeReplace : (List (CompVar, CompVar)) -> CompVar -> CompVar
+maybeReplace List.Nil v = v
+maybeReplace ((v,bind)::ls) v = bind
+maybeReplace (x::ls) v = maybeReplace ls v
+
+replaceVars : Expr4 -> (List CompVar) -> Expr4
+replaceVars (Lambda args body) env = Lambda args (replaceVars body env)
+replaceVars (App ((P SetCar)::((V v)::rhs))) env = App (the (List Expr4) 
+                                                  ((P SetCar)::
+                                                    ((V v)::(map (\ e => replaceVars e env) rhs))))
+replaceVars (V v)              env = if v `elem` env 
+                                     then (App (the (List Expr4) [(P Car), (V v)]))
+                                     else (V v)
+replaceVars (Let v rhs e)      env = Let v (replaceVars rhs env) (replaceVars e env)
+replaceVars (Letrec v rhs e)   env = Letrec v (replaceVars rhs env) (replaceVars e env)
+replaceVars (IfE e1 e2 e3)     env = IfE (replaceVars e1 env)
+                                         (replaceVars e2 env)
+                                         (replaceVars e2 env)
+replaceVars (Begin es)         env = Begin (map (\ e => replaceVars e env) es)
+replaceVars (App es)           env = App (map (\ e => replaceVars e env) es)
+replaceVars (P p)              env = (P p)
+replaceVars (C c)              env = (C c)
+
+namespace convAssn
+  expr : Expr3 -> Eff Identity [STATE Int] Expr4
+  expr (Set v e) = 
+    Effects.return $ App (the (List _) [(e4.P SetCar), (V v), !(expr e)])
+  expr (Lambda args (Settable ss e)) =
+    if (ss == List.Nil)
+    then Effects.return $ Lambda args !(expr e)
+    else do pairing <- newBindings ss
+            recE <- expr e
+            let newE = replaceVars recE ss
+            let inner = buildInner pairing newE
+            let newArgs = map (maybeReplace pairing) args
+            Effects.return $ Lambda newArgs inner
+  expr (Let v rhs (Settable ss e)) = 
+    if (ss == List.Nil)
+    then Effects.return $ Let v !(expr rhs) !(expr e)
+    else do newRHS <- expr rhs 
+            pairing <- newBindings ss
+            recE <- expr e
+            let newE = replaceVars recE ss
+            let inner = buildInner pairing newE
+            Effects.return $ Let (maybeReplace pairing v) newRHS inner
+  expr (Letrec v rhs (Settable ss e)) =
+    Effects.return $ Letrec v !(expr rhs) !(expr e)
+  expr (IfE e1 e2 e3) = 
+    Effects.return $ IfE !(expr e1) !(expr e2) !(expr e3)
+  expr (Begin es) = Effects.return $ Begin !(mapE expr es)
+  expr (P p) = Effects.return $ P p
+  expr (C c) = Effects.return $ C c
+  expr (V v) = Effects.return $ V v
+
+convertAssignments e = runId $ run [10000] $ convAssn.expr e
+
+
 --  (optimizeDirectCall)
---  (removeAnonymousLambda)
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+removeAnonymousLambda : Expr4 -> Expr4
+---------------------------------------------------------------------------
+
+mutual
+
+namespace rAL
+  mutual
+    boundExp : Expr4 -> Eff Identity [STATE Int] Expr4
+    boundExp (Lambda xs e) = Effects.return $ Lambda xs !(rAL.expr e)
+    boundExp (Let v rhs e) = Effects.return $ Let v !(rAL.boundExp rhs) !(rAL.expr e)
+    boundExp x = rAL.expr x
+
+-- uniqueId : CompVar -> Eff Identity [STATE Int] CompVar
+    expr : Expr4 -> Eff Identity [STATE Int] Expr4
+    expr (Lambda xs e) = do anonV <- (uniqueId (CompVariable "anon"))
+                            Effects.return $ Letrec anonV (Lambda xs !(rAL.expr e)) (V anonV)
+    expr (Let v rhs e) = Effects.return $ Let v !(rAL.boundExp rhs) !(rAL.expr e)
+    expr (Letrec v (Lambda xs body) e) = 
+      Effects.return $ Letrec v (Lambda xs !(rAL.expr body)) !(rAL.expr body)
+    expr (IfE e1 e2 e3) = Effects.return $ IfE !(rAL.expr e1) !(rAL.expr e2) !(rAL.expr e3) 
+    expr (App es) = Effects.return $ App !(mapE rAL.expr es)
+    expr (Begin es) = Effects.return $ Begin !(mapE rAL.expr es)
+    expr (C c) = Effects.return $ (C c)
+    expr (P p) = Effects.return $ (P p)
+    expr (V v) = Effects.return $ (V v)
+
+removeAnonymousLambda e = runId $ run [20000] $ rAL.expr e
+
 --  (sanitizeBindingForms)
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+sanitizeBindingForms : Expr4 -> Expr4
+---------------------------------------------------------------------------
 --  (uncover-free)
 --  (convert-closures)
 --  (optimize-known-call)
@@ -189,5 +302,10 @@ purifyLetrec x = x
 
 ----------------------------------------------------------------------
 compiler : Esrc -> String 
-compiler e = do let o = purifyLetrec $ uncoverAssignments $ makeBeginExplicit $ removeAndOrNot e
+compiler e = do let o = removeAnonymousLambda 
+                        $ convertAssignments 
+                        $ purifyLetrec 
+                        $ uncoverAssignments 
+                        $ makeBeginExplicit 
+                        $ removeAndOrNot e
                 (show o)

@@ -30,3 +30,6 @@ t4 : Esrc
 t4 = esrc.Letrec y vT 
        [(esrc.Let x (esrc.Lambda [x] [(esrc.App [(esrc.P Plus), (esrc.V x), (C (Num 5))])])
           [(esrc.IfE vT (esrc.App [(esrc.V x), (esrc.V y)]) (esrc.V y))])]
+
+t5 : Esrc
+t5 = Lambda [x,y] [(Set x (C (Num 5))), (Set y (V x)), (esrc.App [(esrc.P Plus), (esrc.V x), (V y)])]

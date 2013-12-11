@@ -5,17 +5,18 @@ import Helpers
 %access public
 
 public data CompPrim = Plus | Minus | Times 
-                 | Fst | Snd | Cons 
-                 | PairHuh | NullHuh | BoolHuh 
-                 | Box | Unbox | BoxSet | BoxHuh 
-                 | EqualHuh | LT | LEQ | GT | GEQ 
+                     | Car | Cdr | Cons | MTList
+                     | SetCar | SetCdr
+                     | PairHuh | NullHuh | BoolHuh 
+                     | Box | Unbox | BoxSet | BoxHuh 
+                     | EqualHuh | LT | LEQ | GT | GEQ 
 
 instance Show CompPrim where
   show Plus = "+"
   show Minus = "-"
   show Times = "*"
-  show Fst = "fst"
-  show Snd = "snd"
+  show Car = "car"
+  show Cdr = "cdr"
   show Cons = "cons"
   show PairHuh = "pair?"
   show NullHuh = "null?"
@@ -175,7 +176,6 @@ instance Show Expr3 where
   show (Lambda vs ss) = 
     let vars = flattenShow vs
     in "\\ " ++ vars ++ ". " ++ showSet ss
---show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -187,11 +187,41 @@ instance Show Expr3 where
   show (IfE e1 e2 e3) = "(if " ++ show e1 ++ " " ++ show e2 ++ 
                            " " ++ show e3 ++ ")"
   show (Begin es) = "(begin " ++ flattenShow es ++ ")"
-  show (Set v e) = "set! " ++ show v ++ " " ++ show e
+  show (Set v e) = "(set! " ++ show v ++ " " ++ show e ++ ")"
 
 showSet (Settable vs e) =  "[set " ++ (flattenShow vs) ++ "] " ++ (show e)
 
 instance Show SBody where
   show (Settable vs e) = "[settables: " ++ (flattenShow vs) ++ "] " ++ (show e)
+
+----------------------------------------------------------------------------
+namespace e4
+  public data Expr4 = Lambda (List CompVar) Expr4 
+                    | App (List Expr4)
+                    | P CompPrim
+                    | C CompConst
+                    | V CompVar
+                    | Let CompVar Expr4 Expr4
+                    | Letrec CompVar Expr4 Expr4
+                    | IfE Expr4 Expr4 Expr4
+                    | Begin (List Expr4)
+--          | Fun Type ((List String), (List Expr2))
+
+
+instance Show Expr4 where
+  show (Lambda vs e) = 
+    let vars = flattenShow vs
+    in "\\ " ++ vars ++ "." ++ (show e)
+  show (App es) = "(" ++ (flattenShow es) ++ ")"
+  show (P p) = (show p)
+  show (C c) = (show c)
+  show (V v) = show v
+  show (Let v rhs e) = "let " ++ (show v) ++ " = " ++ (show rhs) ++ 
+                       " in " ++ (show e)
+  show (Letrec v rhs e) = "letrec " ++ (show v) ++ " = " ++ (show rhs) ++ 
+                          " in " ++ (show e)
+  show (IfE e1 e2 e3) = "(if " ++ show e1 ++ " " ++ show e2 ++ 
+                           " " ++ show e3 ++ ")"
+  show (Begin es) = "(begin " ++ flattenShow es ++ ")"
 
 
