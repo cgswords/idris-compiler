@@ -160,42 +160,51 @@ purifyLetrec x = x
 convertAssignments : Expr3 -> Expr4
 ---------------------------------------------------------------------------
 
+uniqueVar : String -> Eff Identity [STATE Int] CompVar
+uniqueVar s = do var <- get
+                 put (var + 1)
+                 Effects.return $ CompVariable (s ++ "." ++ (show var))
+
+uniqueLbl : String -> Eff Identity [STATE Int] CompLbl
+uniqueLbl s = do var <- get
+                 put (var + 1)
+                 Effects.return $ CompLabel (s ++ "$" ++ (show var))
+
 uniqueId : CompVar -> Eff Identity [STATE Int] CompVar
-uniqueId (CompVariable s) = Effects.return $ CompVariable (s ++ (show !get))
+uniqueId (CompVariable s) = uniqueVar s
 
 newBindings : (List CompVar) -> Eff Identity [STATE Int] (List (CompVar, CompVar))
 newBindings List.Nil = Effects.return $ List.Nil
 newBindings (x::ls) = Effects.return $ the (List _) ((x,!(uniqueId x))::(!(newBindings ls)))
 
-buildInner : (List (CompVar, CompVar)) -> Expr4 -> Expr4
-buildInner List.Nil e = e
-buildInner ((v,bind)::ls) e = 
-  e4.Let v (e4.App [(P Cons), (V bind), (P MTList)]) (buildInner ls e)
-
 maybeReplace : (List (CompVar, CompVar)) -> CompVar -> CompVar
 maybeReplace List.Nil v = v
-maybeReplace ((v,bind)::ls) v = bind
-maybeReplace (x::ls) v = maybeReplace ls v
-
-replaceVars : Expr4 -> (List CompVar) -> Expr4
-replaceVars (Lambda args body) env = Lambda args (replaceVars body env)
-replaceVars (App ((P SetCar)::((V v)::rhs))) env = App (the (List Expr4) 
-                                                  ((P SetCar)::
-                                                    ((V v)::(map (\ e => replaceVars e env) rhs))))
-replaceVars (V v)              env = if v `elem` env 
-                                     then (App (the (List Expr4) [(P Car), (V v)]))
-                                     else (V v)
-replaceVars (Let v rhs e)      env = Let v (replaceVars rhs env) (replaceVars e env)
-replaceVars (Letrec v rhs e)   env = Letrec v (replaceVars rhs env) (replaceVars e env)
-replaceVars (IfE e1 e2 e3)     env = IfE (replaceVars e1 env)
-                                         (replaceVars e2 env)
-                                         (replaceVars e2 env)
-replaceVars (Begin es)         env = Begin (map (\ e => replaceVars e env) es)
-replaceVars (App es)           env = App (map (\ e => replaceVars e env) es)
-replaceVars (P p)              env = (P p)
-replaceVars (C c)              env = (C c)
+maybeReplace ((x,bind)::ls) v = if x == v then bind else maybeReplace ls v
 
 namespace convAssn
+  buildInner : (List (CompVar, CompVar)) -> Expr4 -> Expr4
+  buildInner List.Nil e = e
+  buildInner ((v,bind)::ls) e = 
+    e4.Let v (e4.App [(P Cons), (V bind), (P MTList)]) (buildInner ls e)
+
+  replaceVars : Expr4 -> (List CompVar) -> Expr4
+  replaceVars (Lambda args body) env = Lambda args (replaceVars body env)
+  replaceVars (App ((P SetCar)::((V v)::rhs))) env = App (the (List Expr4) 
+                                                    ((P SetCar)::
+                                                      ((V v)::(map (\ e => replaceVars e env) rhs))))
+  replaceVars (V v)              env = if v `elem` env 
+                                       then (App (the (List Expr4) [(P Car), (V v)]))
+                                       else (V v)
+  replaceVars (Let v rhs e)      env = Let v (replaceVars rhs env) (replaceVars e env)
+  replaceVars (Letrec v rhs e)   env = Letrec v (replaceVars rhs env) (replaceVars e env)
+  replaceVars (IfE e1 e2 e3)     env = IfE (replaceVars e1 env)
+                                           (replaceVars e2 env)
+                                           (replaceVars e2 env)
+  replaceVars (Begin es)         env = Begin (map (\ e => replaceVars e env) es)
+  replaceVars (App es)           env = App (map (\ e => replaceVars e env) es)
+  replaceVars (P p)              env = (P p)
+  replaceVars (C c)              env = (C c)
+
   expr : Expr3 -> Eff Identity [STATE Int] Expr4
   expr (Set v e) = 
     Effects.return $ App (the (List _) [(e4.P SetCar), (V v), !(expr e)])
@@ -222,14 +231,12 @@ namespace convAssn
   expr (IfE e1 e2 e3) = 
     Effects.return $ IfE !(expr e1) !(expr e2) !(expr e3)
   expr (Begin es) = Effects.return $ Begin !(mapE expr es)
+  expr (App es) = Effects.return $ App !(mapE expr es)
   expr (P p) = Effects.return $ P p
   expr (C c) = Effects.return $ C c
   expr (V v) = Effects.return $ V v
 
 convertAssignments e = runId $ run [10000] $ convAssn.expr e
-
-
---  (optimizeDirectCall)
 
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
@@ -247,7 +254,7 @@ namespace rAL
 
 -- uniqueId : CompVar -> Eff Identity [STATE Int] CompVar
     expr : Expr4 -> Eff Identity [STATE Int] Expr4
-    expr (Lambda xs e) = do anonV <- (uniqueId (CompVariable "anon"))
+    expr (Lambda xs e) = do anonV <- uniqueVar "anon"
                             Effects.return $ Letrec anonV (Lambda xs !(rAL.expr e)) (V anonV)
     expr (Let v rhs e) = Effects.return $ Let v !(rAL.boundExp rhs) !(rAL.expr e)
     expr (Letrec v (Lambda xs body) e) = 
@@ -261,19 +268,114 @@ namespace rAL
 
 removeAnonymousLambda e = runId $ run [20000] $ rAL.expr e
 
---  (sanitizeBindingForms)
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 sanitizeBindingForms : Expr4 -> Expr4
 ---------------------------------------------------------------------------
---  (uncover-free)
---  (convert-closures)
---  (optimize-known-call)
+
+namespace sBF
+  expr : Expr4 -> Expr4
+  expr (Let v (Lambda xs body) e) = Letrec v (Lambda xs (expr body)) (expr e)
+  expr (Let v rhs e) = Let v (expr rhs) (expr e)
+  expr (Letrec v (Lambda xs body) e) = Letrec v (Lambda xs (expr body)) (expr e)
+  expr (IfE e1 e2 e3) = IfE (expr e1) (expr e2) (expr e3)
+  expr (App es) = App (map expr es)
+  expr (Begin es) = Begin (map expr es)
+  expr x = x
+
+sanitizeBindingForms = sBF.expr
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+uncoverFree : Expr4 -> Expr5
+---------------------------------------------------------------------------
+
+namespace uF
+  expr : Expr4 -> (Expr5, (List CompVar))
+  expr (Let x rhs body) = 
+    let (newBody, bodyFrees) = uF.expr body in
+    let (newRHS, rhsFrees) = uF.expr rhs in
+    (Let x newRHS newBody, difference (union rhsFrees bodyFrees) (the (List CompVar) [x]))
+  expr (Letrec x (Lambda xs rhs) body) =
+    let (newRHS, rhsFrees) = uF.expr rhs in
+    let (newBody, bodyFrees) = uF.expr body in
+    let bindList = (the (List CompVar) [x]) in
+    let freesForm = e5.Frees (difference rhsFrees (union bindList xs)) in
+    let newExpr = Letrec x (Lambda xs freesForm newRHS) newBody in
+    let newFrees = difference (union rhsFrees bodyFrees) bindList in
+    (newExpr, newFrees)
+  expr (IfE e1 e2 e3) = 
+    let (ne1, nef1) = uF.expr e1 in
+    let (ne2, nef2) = uF.expr e2 in
+    let (ne3, nef3) = uF.expr e3 in
+    (IfE ne1 ne2 ne3, (union nef1 (union nef2 nef3)))
+  expr (Begin es) = 
+    let recs = map uF.expr es in
+    let newEs = map fst recs in
+    let frees = map snd recs in
+    (Begin newEs, foldr union List.Nil frees)
+  expr (App es) = 
+    let recs = map uF.expr es in
+    let newEs = map fst recs in
+    let frees = map snd recs in
+    (App newEs, foldr union List.Nil frees)
+  expr (C c) = ((C c), List.Nil)
+  expr (P p) = ((P p), List.Nil) 
+  expr (V v) = ((V v), (the (List CompVar) [v]))
+
+uncoverFree e = let (e, f) = uF.expr e in e
+
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+convertClosures : Expr5 -> Expr6
+---------------------------------------------------------------------------
+--namespace e6
+--public data Expr6 = App (List Expr6)
+--                  | P CompPrim
+--                  | C CompConst
+--                  | V CompVar
+--                  | Let CompVar Expr6 Expr6
+--                  | Letrec CompLbl e6.LForm CForm Expr6
+--                  | IfE Expr6 Expr6 Expr6
+--                  | Begin (List Expr6)
+--public data LForm = Lambda (List CompVar) e6.FVars Expr6
+--public data CForm = Closure (CompVar, CompLbl, (List CompVar)) Expr6
+--public data FVars = Frees (List CompVar)
+
+namespace cC
+  expr : Expr5 -> Eff Identity [STATE Int] Expr6
+  expr (Letrec (CompVariable s) (Lambda xs (Frees fs) rhs) e) = 
+    do newLbl <- uniqueLbl s
+       closVar <- uniqueVar "cp"
+       Effects.return $ 
+        Letrec newLbl 
+               (e6.Lambda (closVar::xs) (e6.Frees (closVar::fs)) !(cC.expr rhs)) 
+               (e6.Closure ((CompVariable s), newLbl, fs))
+               !(cC.expr e)
+               -- (Lambda (closVar::xs) (e6.Frees (closVar::fs)) !(cC.expr rhs)) 
+  expr (App ((V v)::es)) = Effects.return $ App ((V v)::(V v)::(!(mapE cC.expr es)))
+  expr (App ((P p)::es)) = Effects.return $ App ((P p)::(!(mapE cC.expr es)))
+  expr (App (x::es)) = do uid <- uniqueVar "tmp"
+                          let e = e6.Let uid 
+                                    !(expr x) 
+                                    (App ((V uid)::(V uid)::(!(mapE cC.expr es))))
+                          Effects.return e 
+  expr (Let v rhs e) = Effects.return $ Let v !(expr rhs) !(cC.expr e)
+  expr (IfE e1 e2 e3) = Effects.return $ IfE !(cC.expr e1) !(cC.expr e2) !(cC.expr e3)
+  expr (Begin es) = Effects.return $ Begin !(mapE cC.expr es)
+  expr (P p) = Effects.return $ (P p)
+  expr (C c) = Effects.return $ (C c)
+  expr (V v) = Effects.return $ (V v)
+
+convertClosures e = runId $ run [30000] $ cC.expr e
+
+---------------------------------------------------------------------------
+----  (optimize-known-call)
 --  (introduce-procedure-primitives)
 --  (lift-letrec)
 --  (normalize-context)
 --  (specify-representation)
---  (fold-constants)
+----  (fold-constants)
 --  (uncover-locals)
 --  (remove-let)
 --  (verify-uil)
@@ -296,13 +398,15 @@ sanitizeBindingForms : Expr4 -> Expr4
 --  (expose-frame-var)
 --  (expose-memory-operands)
 --  (expose-basic-blocks)
---  (optimize-jumps)
+----  (optimize-jumps)
 --  (flatten-program)
 --  (generate-x86-64 assemble)
 
 ----------------------------------------------------------------------
 compiler : Esrc -> String 
-compiler e = do let o = removeAnonymousLambda 
+compiler e = do let o = uncoverFree
+                        $ sanitizeBindingForms
+                        $ removeAnonymousLambda
                         $ convertAssignments 
                         $ purifyLetrec 
                         $ uncoverAssignments 

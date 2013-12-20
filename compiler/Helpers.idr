@@ -10,6 +10,7 @@ flattenShow : (Show a) => (List a) -> String
 flattenShow Nil = ""
 flattenShow (x::ls) = show x ++ " " ++ flattenShow ls
 
+
 unique : (Eq a) => List a -> List a
 unique [] = []
 unique (x::ls) = if elem x ls then unique ls else x::(unique ls)

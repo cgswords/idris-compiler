@@ -16,8 +16,11 @@ instance Show CompPrim where
   show Minus = "-"
   show Times = "*"
   show Car = "car"
+  show SetCar = "set-car!"
   show Cdr = "cdr"
+  show SetCdr = "set-cdr!"
   show Cons = "cons"
+  show MTList = "'()"
   show PairHuh = "pair?"
   show NullHuh = "null?"
   show BoolHuh = "bool?"
@@ -42,10 +45,18 @@ instance Show CompConst where
 public data CompVar = CompVariable String
 
 instance Show CompVar where
-  show (CompVariable x) = show x
+  show (CompVariable x) = "var_" ++ x
 
 instance Eq CompVar where
   (CompVariable x) == (CompVariable y) = x == y
+
+public data CompLbl = CompLabel String
+
+instance Show CompLbl where
+  show (CompLabel x) = "lbl_" ++ x
+
+instance Eq CompLbl where
+  (CompLabel x) == (CompLabel y) = x == y
 
 ----------------------------------------------------------------------------
 namespace esrc
@@ -67,7 +78,7 @@ namespace esrc
 instance Show Esrc where
   show (Lambda vs e) = 
     let vars = flattenShow vs
-    in "\\ " ++ vars ++ "." ++ (flattenShow e)
+    in "lambda (" ++ vars ++ ")." ++ (flattenShow e)
 --show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
@@ -83,7 +94,7 @@ instance Show Esrc where
   show (AndE es) = "(and " ++ flattenShow es ++ ")"
   show (Not e) = "(not " ++ show e ++ ")"
   show (Begin es) = "(begin " ++ flattenShow es ++ ")"
-  show (Set v e) = "set! " ++ show v ++ " " ++ show e
+  show (Set v e) = "(set! " ++ show v ++ " " ++ show e ++ ")"
 
 ----------------------------------------------------------------------------
 namespace e1
@@ -102,7 +113,7 @@ namespace e1
 instance Show Expr1 where
   show (Lambda vs e) = 
     let vars = flattenShow vs
-    in "\\ " ++ vars ++ "." ++ (flattenShow e)
+    in "lambda " ++ vars ++ "." ++ (flattenShow e)
 --show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
@@ -115,7 +126,7 @@ instance Show Expr1 where
   show (IfE e1 e2 e3) = "(if " ++ show e1 ++ " " ++ show e2 ++ 
                            " " ++ show e3 ++ ")"
   show (Begin es) = "(begin " ++ flattenShow es ++ ")"
-  show (Set v e) = "set! " ++ show v ++ " " ++ show e
+  show (Set v e) = "(set! " ++ show v ++ " " ++ show e ++ ")"
     
 ----------------------------------------------------------------------------
 namespace e2
@@ -135,7 +146,7 @@ namespace e2
 instance Show Expr2 where
   show (Lambda vs e) = 
     let vars = flattenShow vs
-    in "\\ " ++ vars ++ "." ++ (show e)
+    in "lambda " ++ vars ++ "." ++ (show e)
 --show (Fun t (d, e)) = "Fun " ++ (flattenShow e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
@@ -148,7 +159,7 @@ instance Show Expr2 where
   show (IfE e1 e2 e3) = "(if " ++ show e1 ++ " " ++ show e2 ++ 
                            " " ++ show e3 ++ ")"
   show (Begin es) = "(begin " ++ flattenShow es ++ ")"
-  show (Set v e) = "set! " ++ show v ++ " " ++ show e
+  show (Set v e) = "(set! " ++ show v ++ " " ++ show e ++ ")"
 
 ----------------------------------------------------------------------------
 namespace e3
@@ -175,7 +186,7 @@ showSet : SBody -> String
 instance Show Expr3 where
   show (Lambda vs ss) = 
     let vars = flattenShow vs
-    in "\\ " ++ vars ++ ". " ++ showSet ss
+    in "lambda " ++ vars ++ ". " ++ showSet ss
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -211,7 +222,7 @@ namespace e4
 instance Show Expr4 where
   show (Lambda vs e) = 
     let vars = flattenShow vs
-    in "\\ " ++ vars ++ "." ++ (show e)
+    in "lambda " ++ vars ++ "." ++ (show e)
   show (App es) = "(" ++ (flattenShow es) ++ ")"
   show (P p) = (show p)
   show (C c) = (show c)
@@ -224,4 +235,55 @@ instance Show Expr4 where
                            " " ++ show e3 ++ ")"
   show (Begin es) = "(begin " ++ flattenShow es ++ ")"
 
+----------------------------------------------------------------------------
+namespace e5
+  mutual
+    public data Expr5 = App (List Expr5)
+                      | P CompPrim
+                      | C CompConst
+                      | V CompVar
+                      | Let CompVar Expr5 Expr5
+                      | Letrec CompVar e5.LForm Expr5
+                      | IfE Expr5 Expr5 Expr5
+                      | Begin (List Expr5)
+    public data LForm = Lambda (List CompVar) e5.FVars Expr5
+    public data FVars = Frees (List CompVar)
+
+showE5LForm : e5.LForm -> String
+showE5FVars : e5.FVars -> String
+
+instance Show Expr5 where
+  show (App es) = "(" ++ (flattenShow es) ++ ")"
+  show (P p) = (show p)
+  show (C c) = (show c)
+  show (V v) = show v
+  show (Let v rhs e) = 
+    "let " ++ (show v) ++ " = " ++ (show rhs) ++ " in " ++ (show e)
+  show (Letrec v rhs e) = "letrec " ++ (show v) ++ " = " ++ (showE5LForm rhs) ++ 
+                          " in " ++ show e
+  show (IfE e1 e2 e3) = "(if " ++ show e1 ++ " " ++ show e2 ++ 
+                           " " ++ show e3 ++ ")"
+  show (Begin es) = "(begin " ++ flattenShow es ++ ")"
+
+showE5LForm (Lambda vs f e) =
+    let vars = flattenShow vs in
+    let fs = showE5FVars f  
+    in "lambda " ++ vars ++ ". " ++ fs ++ show e
+
+showE5FVars (Frees vs) =  "[free " ++ (flattenShow vs) ++ "] "
+
+----------------------------------------------------------------------------
+namespace e6
+  mutual
+    public data Expr6 = App (List Expr6)
+                      | P CompPrim
+                      | C CompConst
+                      | V CompVar
+                      | Let CompVar Expr6 Expr6
+                      | Letrec CompLbl e6.LForm CForm Expr6
+                      | IfE Expr6 Expr6 Expr6
+                      | Begin (List Expr6)
+    public data LForm = Lambda (List CompVar) e6.FVars Expr6
+    public data CForm = Closure (CompVar, CompLbl, (List CompVar)) Expr6
+    public data FVars = Frees (List CompVar)
 
